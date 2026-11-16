@@ -4,10 +4,13 @@ package provider
 // has reached the share of it the user chose, or a balance has fallen to the
 // amount they chose (settings.UsageAlert, settings.BalanceAlert); and the
 // reset reminder (#720), before a window renews or a reset credit runs out
-// with much left unused (settings.ResetReminder). Each is
+// with much left unused (settings.ResetReminder). The allowance-back alert
+// (#6821, settings.AllowanceBackAlert) says when a window that was read as
+// used up is read again after that run's reset with allowance. Each is
 // said once: a window once each time it runs, a balance once until it is
 // topped up past the amount again. What was said is kept in a file, so a
-// restart doesn't say it again.
+// restart doesn't say it again, and a window held used up is still held
+// after a restart.
 
 import (
 	"context"
@@ -37,7 +40,8 @@ type QuotaAlert struct {
 	Balance  string // the balance as the vendor tells it
 	// Kind is "" for the alerts above; "renews" for a long window renewing
 	// within the reminder's hours with much of it left, "expires" for
-	// reset credits running out by then, Credits of them (#720)
+	// reset credits running out by then, Credits of them (#720), "back"
+	// for a window that was used up and has allowance again (#6821)
 	Kind    string
 	Credits int
 }
@@ -189,6 +193,95 @@ func dueReminders(qs []SubscriptionQuota, marks map[string]alertMark, lead time.
 	return out
 }
 
+// backFull is the share at which a window is used up for the allowance-back
+// alert: 100, as usedUp and magpie quota wait count a window used up. A
+// window at routing's spent share (98) still has a little allowance, so it
+// is not held here.
+const backFull = 100
+
+// dueBacks is what the readings qs call for with the allowance-back alert
+// on (on false is off, #6821): a window read before at backFull, its reset
+// still to come, then read again after that run with allowance — used
+// under backFull, or that run's reset passed (resetPassed, the same rule
+// usedUp uses). Said once per run. A window never read used up says
+// nothing, the first reading after magpie starts included. A reading that
+// failed, or is one kept from before, says nothing and keeps the mark. A
+// dip under backFull in the same run, the reset still to come, is not the
+// window coming back (a vendor can say so while the run stands).
+func dueBacks(qs []SubscriptionQuota, marks map[string]alertMark, on bool, now time.Time) []QuotaAlert {
+	var out []QuotaAlert
+	for _, q := range qs {
+		if q.Error != "" || q.AsOf != nil {
+			continue
+		}
+		for _, w := range PooledWindows(q.Windows) {
+			if w.Aside && !toldAside(w) {
+				continue
+			}
+			key := alertPrefix(q) + "k|" + w.Name + "|" + w.Model
+			resets := alertReset(w, now)
+			if !on {
+				delete(marks, key)
+				continue
+			}
+			if w.Used >= backFull && !resetPassed(w, now) {
+				if m, ok := marks[key]; ok && sameRun(m.Until, resets) {
+					m.At = now
+					marks[key] = m
+				} else {
+					marks[key] = alertMark{At: now, Until: resets}
+				}
+				continue
+			}
+			m, ok := marks[key]
+			if !ok {
+				continue // never held used up
+			}
+			if !cameBack(m, resets, now) {
+				m.At = now
+				marks[key] = m
+				continue
+			}
+			delete(marks, key)
+			out = append(out, QuotaAlert{
+				Provider: q.Provider, Name: q.Name, User: q.User,
+				Window: w.Name, Used: w.Used, ResetsAt: resets, Kind: "back",
+			})
+		}
+	}
+	return out
+}
+
+// alertReset is when w starts again, from a reading at now: its reset
+// time, or now plus the seconds it has left. The time is a copy, so the
+// mark doesn't follow a later change of the window.
+func alertReset(w QuotaWindow, now time.Time) *time.Time {
+	var t time.Time
+	switch {
+	case w.ResetsAt != nil:
+		t = *w.ResetsAt
+	case w.ResetSecs > 0:
+		t = now.Add(time.Duration(w.ResetSecs) * time.Second)
+	default:
+		return nil
+	}
+	return &t
+}
+
+// cameBack says whether a window held used up at m is back at now: the
+// run it was held for has reset, or its reset wasn't told and a later
+// reading (the caller) finds allowance. A later reset, not the same run,
+// is a new run. resets is that later reading's reset.
+func cameBack(m alertMark, resets *time.Time, now time.Time) bool {
+	if m.Until == nil {
+		return true
+	}
+	if !now.Before(*m.Until) {
+		return true
+	}
+	return resets != nil && !sameRun(m.Until, resets) && resets.After(*m.Until)
+}
+
 // alertPrefix begins the keys of one card's marks: its provider and account.
 func alertPrefix(q SubscriptionQuota) string { return q.Provider + "|" + q.User + "|" }
 
@@ -244,13 +337,14 @@ func readAlertMarks(path string) map[string]alertMark {
 
 // checkAlerts reads what is left everywhere and says what is due, keeping
 // the marks in path.
-func checkAlerts(path string, qs []SubscriptionQuota, pct int, bal float64, lead time.Duration, now time.Time) []QuotaAlert {
+func checkAlerts(path string, qs []SubscriptionQuota, pct int, bal float64, lead time.Duration, back bool, now time.Time) []QuotaAlert {
 	quotaAlertMu.Lock()
 	defer quotaAlertMu.Unlock()
 	marks := readAlertMarks(path)
 	before, _ := json.Marshal(marks)
 	out := dueAlerts(qs, marks, pct, bal, now)
 	out = append(out, dueReminders(qs, marks, lead, now)...)
+	out = append(out, dueBacks(qs, marks, back, now)...)
 	if after, _ := json.Marshal(marks); string(after) != string(before) {
 		os.MkdirAll(filepath.Dir(path), 0o755)
 		os.WriteFile(path, append(after, '\n'), 0o600)
@@ -276,12 +370,12 @@ func WatchQuotas(ctx context.Context, wake <-chan struct{}, send func(QuotaAlert
 		case <-t.C:
 		case <-wake:
 		}
-		if s := settings.Load(); s.UsageAlert > 0 || s.BalanceAlert > 0 || s.ResetReminder > 0 {
+		if s := settings.Load(); s.UsageAlert > 0 || s.BalanceAlert > 0 || s.ResetReminder > 0 || s.AllowanceBackAlert {
 			cx, cancel := context.WithTimeout(ctx, time.Minute)
 			qs := Quotas(cx)
 			cancel()
 			lead := time.Duration(s.ResetReminder) * time.Hour
-			for _, a := range checkAlerts(quotaAlertPath(), qs, s.UsageAlert, s.BalanceAlert, lead, time.Now()) {
+			for _, a := range checkAlerts(quotaAlertPath(), qs, s.UsageAlert, s.BalanceAlert, lead, s.AllowanceBackAlert, time.Now()) {
 				log.Printf("usage alert: %s %s %s %s %.0f%% %s", a.Kind, a.Name, a.User, a.Window, a.Used, a.Balance)
 				send(a)
 			}

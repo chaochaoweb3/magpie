@@ -85,7 +85,7 @@
      "name": "用量快满时能提醒吗？",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "magpie quota alert 80 会在任意窗口用到 80% 时由 magpie 应用发通知；--balance 5 在余额降到 5 以下时提醒。默认都关闭。"
+      "text": "magpie quota alert 80 会在任意窗口用到 80% 时由 magpie 应用发通知；--balance 5 在余额降到 5 以下时提醒；--back on 在用尽的窗口恢复额度时通知一次。默认都关闭。"
      }
     },
     {
@@ -194,9 +194,10 @@ magpie quota history --days 7 --json</pre></div>
 curl 'http://127.0.0.1:3425/v1/magpie/quotas/history?days=7&provider=codex'</pre></div>
     <p>magpie 的官方技能 <code>magpie-quota</code> 让 Agent 读 <code>magpie quota --json</code>，并用 <code>magpie quota wait</code> 等待额度恢复。它在 资源库 的技能市场里排在最前面。</p>
     <h2 id="alert"><a class="anchor" href="#alert">用量提醒</a></h2>
-    <p>让 magpie 应用在任意订阅或计划的某个窗口用到指定比例时发通知，每个窗口每次只提醒一次；或者在余额降到某个数以下时提醒，以它自己的货币或 credits 计，充值超过之前只提醒一次。两项默认都关闭，<code>off</code> 关掉。</p>
+    <p>让 magpie 应用在任意订阅或计划的某个窗口用到指定比例时发通知，每个窗口每次只提醒一次；或者在余额降到某个数以下时提醒，以它自己的货币或 credits 计，充值超过之前只提醒一次。<code>--back on</code> 在一个读作用尽（100%）的窗口于该轮重置后再读到有额度时通知一次（第一次读到、以及 magpie 刚启动时不通知）。默认都关闭；<code>off</code> 关掉用量提醒，<code>--balance off</code> 和 <code>--back off</code> 关掉另外两项。设置 › 用量 › 提醒里是同样的开关；配置了 Bark 时通知也会发到 Bark。</p>
     <div class="code"><span class="lang">终端</span><button class="copy" data-copy="q-alert">复制</button><pre id="q-alert">magpie quota alert 80              # notify at 80% used, once per window
 magpie quota alert --balance 5     # notify when a balance falls to 5 or under
+magpie quota alert --back on       # notify once when a used-up window renews
 magpie quota alert                 # what is set</pre></div>
     <h2 id="wait"><a class="anchor" href="#wait">等额度恢复</a></h2>
     <p><code>magpie quota wait codex</code> 等到 magpie 里任意一个已打开的 Codex 账号重新有额度时返回；写账号的邮箱或登录名，或 <code>&lt;provider&gt;/&lt;account&gt;</code>，只等那一个。它自己向供应商查询，网关没运行也行，在最近一次重置后不久再查（每 1 到 10 分钟），并在 stderr 上说明在等什么。脚本可以这样在额度用完后接着干：</p>
@@ -220,7 +221,7 @@ magpie quota credits off</pre></div>
     <h3>Codex 额度用完后能自动继续吗？</h3>
     <p>能。脚本里用 until codex exec …; do magpie quota wait codex || break; done，额度恢复后 magpie quota wait 返回，命令接着跑。</p>
     <h3>用量快满时能提醒吗？</h3>
-    <p>magpie quota alert 80 会在任意窗口用到 80% 时由 magpie 应用发通知；--balance 5 在余额降到 5 以下时提醒。默认都关闭。</p>
+    <p>magpie quota alert 80 会在任意窗口用到 80% 时由 magpie 应用发通知；--balance 5 在余额降到 5 以下时提醒；--back on 在用尽的窗口恢复额度时通知一次。默认都关闭。</p>
     <h3>Agent 能自己读额度吗？</h3>
     <p>能。magpie quota --json 或 GET http://127.0.0.1:3425/v1/magpie/quotas 返回同样的数据；官方技能 magpie-quota 教 Agent 读它并等待额度恢复。</p>
 

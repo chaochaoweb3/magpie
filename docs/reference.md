@@ -3172,6 +3172,18 @@ asks nobody and prints what was read, saying so on stderr, so a status line
 can run it in a loop. `--json` prints the card as `magpie quota --json` does,
 with `readAt` (when it was read) and `error` (why it couldn't be).
 
+`magpie quota alert 80` has the app notify when any window of a subscription
+or plan reaches 80% used, once each time that window runs (not a window set
+aside, such as on-demand spending). `--balance 5` notifies when a balance
+falls to 5 or under, in its own currency or credits, once until it is topped
+up past that. `--back on` notifies once when a window that was read as used
+up (100%) is read again after that run's reset with allowance — not on the
+first reading, and not merely because magpie started. `off` turns the usage
+alert off; `--balance off` and `--back off` turn those off. With no argument
+it says what is set. All three are off until set. The notifications come
+from the app, while it runs, and go to Bark too when Bark is set. The same
+switches are Settings › Usage › Alerts.
+
 `magpie quota wait <provider|account>` blocks until that subscription (any
 of its accounts magpie has on) or that one account has allowance again — no
 window that stops it used up — then exits 0, so a long task stopped by its
@@ -4029,6 +4041,7 @@ magpie settings reset theme     # back to its default
 magpie settings set dayStart 4   # a day starts at 4:00 (0 to 6): the Usage page and daily and monthly key caps cut days there; the Sessions page does not yet
 
 magpie quota                    # what is left of every subscription, plan and key balance
+magpie quota alert 80           # notify at 80% used; --back on when a used-up window renews
 magpie quota refresh codex      # read Codex's cards again now (once per 30s)
 magpie quota wait codex         # block until a Codex account has allowance again
 magpie quota credits me@example.com off   # hold a ChatGPT account at its limit instead of spending credits
@@ -4535,8 +4548,9 @@ The gateway and usage:
 - `quotas.json` — the last allowance each account reported
 - `quota-history.json`, `balance-history.json` — allowance and balance
   readings over time, for the Usage page's charts
-- `usage-alerts.json` — the usage alerts already shown, so a restart
-  doesn't show them again
+- `usage-alerts.json` — the usage alerts already shown, and windows read
+  as used up, so a restart doesn't show an alert again and an
+  allowance-back alert still fires when that window renews
 - `client-shapes.json` — the headers the gateway last let through for each
   client, for a test from the CLI
 - `gateway-sessions-hidden.json` — gateway sessions you deleted

@@ -69,7 +69,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         const head = page.locator("#alertHead");
         assert(await head.isVisible(), "Alerts' heading shows");
         assert.equal((await head.textContent()).trim(), await tr(page, "Alerts"));
-        for (const id of ["usageAlertRow", "balanceAlertRow", "resetReminderRow", "turnDoneRow"]) {
+        for (const id of ["usageAlertRow", "balanceAlertRow", "resetReminderRow", "allowanceBackRow", "turnDoneRow"]) {
           assert.equal(await page.locator(`#alertList > #${id}`).count(), 1, id + " under Alerts");
         }
         assert(await page.evaluate(() => document.querySelector("#currencySegs").compareDocumentPosition(document.querySelector("#alertHead")) & Node.DOCUMENT_POSITION_FOLLOWING), "after the display's rows");

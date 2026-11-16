@@ -139,11 +139,150 @@ func TestCheckAlertsKeepsMarks(t *testing.T) {
 	now := time.Now()
 	reset := now.Add(time.Hour)
 	qs := []SubscriptionQuota{{Provider: "claude", User: "x", Windows: []QuotaWindow{{Name: "5 hours", Used: 90, ResetsAt: &reset}}}}
-	if got := checkAlerts(path, qs, 80, 0, 0, now); len(got) != 1 {
+	if got := checkAlerts(path, qs, 80, 0, 0, false, now); len(got) != 1 {
 		t.Fatalf("first: %+v", got)
 	}
-	if got := checkAlerts(path, qs, 80, 0, 0, now.Add(time.Minute)); len(got) != 0 {
+	if got := checkAlerts(path, qs, 80, 0, 0, false, now.Add(time.Minute)); len(got) != 0 {
 		t.Fatalf("told again after the file was read back: %+v", got)
+	}
+}
+
+// A window read at 100% is told once when a later reading finds that run
+// reset and allowance back (#6821). The first reading, a dip in the same
+// run, a window set aside, and the alert off say nothing.
+func TestDueBacksOncePerRun(t *testing.T) {
+	now := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	reset := now.Add(3 * time.Hour)
+	next := reset.Add(5 * time.Hour)
+	card := func(used float64, at time.Time, aside bool) []SubscriptionQuota {
+		return []SubscriptionQuota{{Provider: "codex", Name: "Codex", User: "a@b.c", Windows: []QuotaWindow{
+			{Name: "5 hours", Used: used, ResetsAt: &at},
+			{Name: "On-demand", Used: 100, Aside: aside},
+		}}}
+	}
+	marks := map[string]alertMark{}
+	// startup, and a window not yet used up: nothing, and nothing kept
+	if got := dueBacks(card(20, reset, true), marks, true, now); len(got) != 0 || len(marks) != 0 {
+		t.Fatalf("first reading with room: %+v %v", got, marks)
+	}
+	if got := dueBacks(card(99, reset, true), marks, true, now); len(got) != 0 || len(marks) != 0 {
+		t.Fatalf("under used up: %+v %v", got, marks)
+	}
+	if got := dueBacks(card(100, reset, true), marks, true, now); len(got) != 0 || len(marks) != 1 {
+		t.Fatalf("held, not told: %+v %v", got, marks)
+	}
+	// the same run again, the reset a few seconds off: still held, still quiet
+	if got := dueBacks(card(100, reset.Add(20*time.Second), true), marks, true, now.Add(5*time.Minute)); len(got) != 0 || len(marks) != 1 {
+		t.Fatalf("same run: %+v %v", got, marks)
+	}
+	// used drops, the reset still to come: not a renewal
+	if got := dueBacks(card(40, reset, true), marks, true, now.Add(time.Hour)); len(got) != 0 || len(marks) != 1 {
+		t.Fatalf("a dip in the same run: %+v %v", got, marks)
+	}
+	// the window reset and has allowance: told once, and the on-demand aside isn't
+	got := dueBacks(card(8, next, true), marks, true, reset.Add(time.Minute))
+	if len(got) != 1 || got[0].Kind != "back" || got[0].Window != "5 hours" || got[0].User != "a@b.c" || got[0].Used != 8 || !got[0].ResetsAt.Equal(next) {
+		t.Fatalf("back: %+v", got)
+	}
+	if len(marks) != 0 {
+		t.Fatalf("told and still held: %v", marks)
+	}
+	if again := dueBacks(card(12, next, true), marks, true, reset.Add(time.Hour)); len(again) != 0 {
+		t.Fatalf("told twice in the new run: %+v", again)
+	}
+	// used up again, then back again: once more
+	dueBacks(card(100, next, true), marks, true, reset.Add(2*time.Hour))
+	if got := dueBacks(card(100, next, true), marks, true, reset.Add(3*time.Hour)); len(got) != 0 {
+		t.Fatalf("still used up: %+v", got)
+	}
+	later := next.Add(5 * time.Hour)
+	if got := dueBacks(card(3, later, true), marks, true, next.Add(time.Minute)); len(got) != 1 || got[0].Window != "5 hours" {
+		t.Fatalf("the next run: %+v", got)
+	}
+	// a new run already used up, the gap never read: nothing, held for that run
+	full := next.Add(5 * time.Hour)
+	dueBacks(card(100, full, true), marks, true, next.Add(-time.Hour))
+	skipped := full.Add(5 * time.Hour)
+	if got := dueBacks(card(100, skipped, true), marks, true, full.Add(time.Minute)); len(got) != 0 || len(marks) != 1 {
+		t.Fatalf("missed the gap: %+v %v", got, marks)
+	}
+	// off forgets the hold
+	if got := dueBacks(card(100, skipped, true), marks, false, full.Add(2*time.Hour)); len(got) != 0 || len(marks) != 0 {
+		t.Fatalf("off: %+v %v", got, marks)
+	}
+}
+
+// A reading kept from before, or one that failed, neither says the window
+// is back nor forgets that it was used up.
+func TestDueBacksStaleReadingKeepsTheHold(t *testing.T) {
+	now := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	reset := now.Add(2 * time.Hour)
+	next := reset.Add(5 * time.Hour)
+	full := []SubscriptionQuota{{Provider: "claude", Name: "Claude", User: "x", Windows: []QuotaWindow{{Name: "5 hours", Used: 100, ResetsAt: &reset}}}}
+	marks := map[string]alertMark{}
+	dueBacks(full, marks, true, now)
+	if len(marks) != 1 {
+		t.Fatal("not held")
+	}
+	staleAt := now
+	stale := []SubscriptionQuota{{Provider: "claude", User: "x", AsOf: &staleAt, Windows: []QuotaWindow{{Name: "5 hours", Used: 5, ResetsAt: &next}}}}
+	if got := dueBacks(stale, marks, true, reset.Add(time.Minute)); len(got) != 0 || len(marks) != 1 {
+		t.Fatalf("a stale reading: %+v %v", got, marks)
+	}
+	failed := []SubscriptionQuota{{Provider: "claude", User: "x", Error: "429"}}
+	if got := dueBacks(failed, marks, true, reset.Add(time.Minute)); len(got) != 0 || len(marks) != 1 {
+		t.Fatalf("a failed reading: %+v %v", got, marks)
+	}
+	back := []SubscriptionQuota{{Provider: "claude", Name: "Claude", User: "x", Windows: []QuotaWindow{{Name: "5 hours", Used: 4, ResetsAt: &next}}}}
+	if got := dueBacks(back, marks, true, reset.Add(time.Minute)); len(got) != 1 {
+		t.Fatalf("the fresh reading: %+v", got)
+	}
+}
+
+// A window whose reset has passed is allowance again, even when the
+// reading still says 100% (Claude's /usage can lag the reset). One that
+// never said when it resets is back when a later reading is under 100%.
+func TestDueBacksResetPassedOrUntold(t *testing.T) {
+	now := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	reset := now.Add(time.Hour)
+	card := func(used float64, at *time.Time) []SubscriptionQuota {
+		return []SubscriptionQuota{{Provider: "codex", User: "a", Windows: []QuotaWindow{{Name: "7 days", Used: used, ResetsAt: at}}}}
+	}
+	marks := map[string]alertMark{}
+	dueBacks(card(100, &reset), marks, true, now)
+	got := dueBacks(card(100, &reset), marks, true, reset.Add(time.Minute))
+	if len(got) != 1 || got[0].Kind != "back" || got[0].Used != 100 || got[0].Window != "7 days" {
+		t.Fatalf("reset passed, still reading 100%%: %+v", got)
+	}
+	marks = map[string]alertMark{}
+	dueBacks(card(100, nil), marks, true, now)
+	if got := dueBacks(card(100, nil), marks, true, now.Add(time.Hour)); len(got) != 0 || len(marks) != 1 {
+		t.Fatalf("still full, no reset: %+v %v", got, marks)
+	}
+	if got := dueBacks(card(15, nil), marks, true, now.Add(2*time.Hour)); len(got) != 1 || got[0].Used != 15 {
+		t.Fatalf("allowance, no reset told: %+v", got)
+	}
+}
+
+// The hold is the file's, so a restart still tells of a window that
+// renewed while magpie was not running, and doesn't tell of one first
+// seen with room.
+func TestCheckAlertsBackKeepsTheHold(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "usage-alerts.json")
+	now := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	reset := now.Add(2 * time.Hour)
+	next := reset.Add(5 * time.Hour)
+	full := []SubscriptionQuota{{Provider: "codex", Name: "Codex", User: "a", Windows: []QuotaWindow{{Name: "5 hours", Used: 100, ResetsAt: &reset}}}}
+	if got := checkAlerts(path, full, 0, 0, 0, true, now); len(got) != 0 {
+		t.Fatalf("first read: %+v", got)
+	}
+	back := []SubscriptionQuota{{Provider: "codex", Name: "Codex", User: "a", Windows: []QuotaWindow{{Name: "5 hours", Used: 6, ResetsAt: &next}}}}
+	got := checkAlerts(path, back, 0, 0, 0, true, reset.Add(time.Minute))
+	if len(got) != 1 || got[0].Kind != "back" || got[0].Window != "5 hours" {
+		t.Fatalf("after the file was read back: %+v", got)
+	}
+	if again := checkAlerts(path, back, 0, 0, 0, true, reset.Add(time.Hour)); len(again) != 0 {
+		t.Fatalf("told again: %+v", again)
 	}
 }
 

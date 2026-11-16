@@ -182,7 +182,7 @@ func (h *host) watchAlerts() {
 	go func() {
 		<-h.ready
 		// set before this run: asked now, so Settings can say if it was refused
-		if s := settings.Load(); s.UsageAlert > 0 || s.BalanceAlert > 0 || s.ResetReminder > 0 || s.TurnDoneAlert > 0 || s.MaskAlert {
+		if s := settings.Load(); s.UsageAlert > 0 || s.BalanceAlert > 0 || s.ResetReminder > 0 || s.AllowanceBackAlert || s.TurnDoneAlert > 0 || s.MaskAlert {
 			go n.allowed()
 		}
 		// a value masked for the first time (Must2333 on X)

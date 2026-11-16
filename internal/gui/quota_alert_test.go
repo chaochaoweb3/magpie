@@ -59,6 +59,37 @@ func TestAlertText(t *testing.T) {
 	}
 }
 
+// An allowance-back alert (#6821) names the window and that it has
+// allowance again, in each language. A reading that still says 100%
+// doesn't quote that share.
+func TestBackText(t *testing.T) {
+	fresh := provider.QuotaAlert{Name: "Codex", User: "a@b.c", Window: "5 hours", Used: 12.34, Kind: "back"}
+	stale := provider.QuotaAlert{Name: "Codex", Window: "7 days", Used: 100, Kind: "back"}
+	for _, c := range []struct{ lang, body string }{
+		{"en", "5 hours: allowance is back, 12.3% used"},
+		{"zh", "5 小时窗口额度已恢复，已用 12.3%"},
+		{"zh-TW", "5 小時時段額度已恢復，已用 12.3%"},
+		{"ja", "5 時間枠の利用枠が戻りました（使用 12.3%）"},
+		{"de", "5 Stunden: Kontingent ist wieder da, 12,3% verbraucht"},
+	} {
+		title, body := alertText(c.lang, fresh, 0, false, time.Now())
+		if title != "Codex · a@b.c" || body != c.body {
+			t.Errorf("%s: %q / %q, want %q", c.lang, title, body, c.body)
+		}
+	}
+	for _, c := range []struct{ lang, body string }{
+		{"en", "7 days: allowance is back"},
+		{"zh", "7 天窗口额度已恢复"},
+		{"zh-TW", "7 天時段額度已恢復"},
+		{"ja", "7 日枠の利用枠が戻りました"},
+		{"de", "7 Tage: Kontingent ist wieder da"},
+	} {
+		if _, body := alertText(c.lang, stale, 0, false, time.Now()); body != c.body {
+			t.Errorf("%s stale: %q", c.lang, body)
+		}
+	}
+}
+
 // the reset reminder's lines (#720): what is left of a window, and resets
 // about to run out
 func TestReminderText(t *testing.T) {

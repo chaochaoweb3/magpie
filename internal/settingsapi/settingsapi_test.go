@@ -283,6 +283,27 @@ func TestQuitNoAskKeptUnlessSent(t *testing.T) {
 	}
 }
 
+// Allowance back (#6821) holds across a save from a page that doesn't
+// send it, and Settings sending it false turns it off.
+func TestAllowanceBackKeptUnlessSent(t *testing.T) {
+	cur := settings.Defaults()
+	cur.AllowanceBackAlert = true
+	in, err := Merge([]byte(`{"theme":"dark"}`), cur, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !in.AllowanceBackAlert {
+		t.Error("a save that didn't send allowanceBackAlert turned it off")
+	}
+	in, err = Merge([]byte(`{"allowanceBackAlert":false}`), cur, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if in.AllowanceBackAlert {
+		t.Error("allowanceBackAlert sent false stayed on")
+	}
+}
+
 // What a reply's model name says is replyModel (ZoeCats on Discord). The
 // page sends it; a page from before it sends memberModel, which changes
 // it only when that page's switch was moved, so its save keeps a vendor

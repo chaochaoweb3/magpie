@@ -791,6 +791,13 @@ type Settings struct {
 	// it left before it renews, a reset credit unspent before it runs out;
 	// once each. 0 is off.
 	ResetReminder int `json:"resetReminder,omitempty"`
+	// AllowanceBackAlert has magpie say with a notification when a window
+	// that was read as used up (100%, as usedUp counts it) is read again
+	// after that run's reset with allowance (#6821): once each time the
+	// window runs. The first reading of a window, including the one as
+	// magpie starts, says nothing. Off until turned on. It goes to Bark
+	// with the other alerts when Bark is set.
+	AllowanceBackAlert bool `json:"allowanceBackAlert,omitempty"`
 	// TurnDoneAlert is how many seconds an agent's turn runs, from the
 	// user's prompt to its last reply, before magpie says it is done with a
 	// notification (itieniu on X): a long task set going while the user

@@ -175,6 +175,9 @@ func alertText(lang string, a provider.QuotaAlert, bal float64, left bool, now t
 	if a.User != "" {
 		title += " · " + provider.AccountShownOf(a.Provider, a.User) // as its card names it (#4416)
 	}
+	if a.Kind == "back" {
+		return title, backText(lang, a)
+	}
 	if a.Kind != "" {
 		return title, reminderText(lang, a, now)
 	}
@@ -246,6 +249,41 @@ func alertText(lang string, a provider.QuotaAlert, bal float64, left bool, now t
 		body += ", resets " + provider.ResetClock(*a.ResetsAt, now)
 	}
 	return title, body
+}
+
+// backText is an allowance-back alert's line (#6821): the window that was
+// used up has allowance again. A reading that still says 100% because its
+// reset has only just passed doesn't quote that share.
+func backText(lang string, a provider.QuotaAlert) string {
+	n := math.Round(a.Used*10) / 10
+	show := n < 100
+	pct := strconv.FormatFloat(n, 'f', -1, 64) + "%"
+	switch lang {
+	case "zh":
+		if show {
+			return fmt.Sprintf("%s窗口额度已恢复，已用 %s", alertWindowZh(a.Window), pct)
+		}
+		return fmt.Sprintf("%s窗口额度已恢复", alertWindowZh(a.Window))
+	case "zh-TW":
+		if show {
+			return fmt.Sprintf("%s時段額度已恢復，已用 %s", alertWindowZhTW(a.Window), pct)
+		}
+		return fmt.Sprintf("%s時段額度已恢復", alertWindowZhTW(a.Window))
+	case "ja":
+		if show {
+			return fmt.Sprintf("%s枠の利用枠が戻りました（使用 %s）", alertWindowJa(a.Window), pct)
+		}
+		return fmt.Sprintf("%s枠の利用枠が戻りました", alertWindowJa(a.Window))
+	case "de":
+		if show {
+			return fmt.Sprintf("%s: Kontingent ist wieder da, %s verbraucht", alertWindowDe(a.Window), strings.Replace(pct, ".", ",", 1))
+		}
+		return fmt.Sprintf("%s: Kontingent ist wieder da", alertWindowDe(a.Window))
+	}
+	if show {
+		return fmt.Sprintf("%s: allowance is back, %s used", a.Window, pct)
+	}
+	return fmt.Sprintf("%s: allowance is back", a.Window)
 }
 
 // reminderText is a reset reminder's line (#720): a long window renewing

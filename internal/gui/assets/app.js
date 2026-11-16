@@ -21233,6 +21233,8 @@ function renderAlerts(s, keep) {
   const opts = [["0", t("Off")], ...hours.map((h) => [String(h), t("{n} h before", { n: h })])];
   if (r && !hours.includes(r)) opts.push([String(r), t("{n} h before", { n: r })]);
   $("#resetReminderSegs").replaceChildren(segs(opts, String(r), (v) => savePrefs({ ...keep, resetReminder: Number(v) })));
+  sub("#allowanceBackSub", t("A notification once a used-up 5-hour, weekly or monthly window renews"));
+  $("#allowanceBackSegs").replaceChildren(segs([["off", t("Off")], ["on", t("On")]], s.allowanceBackAlert ? "on" : "off", (v) => savePrefs({ ...keep, allowanceBackAlert: v === "on" })));
   // a long task done (itieniu on X): Off, or how long a turn ran, in seconds
   sub("#turnDoneSub", t("A notification when Claude Code, Codex, OpenCode or another agent going through magpie finishes a task that ran at least this long"));
   const mins = [1, 3, 10];
@@ -22854,7 +22856,7 @@ function prefsKeep(s) {
     noUpdatePill: !!s.noUpdatePill, noAutoUpdate: !!s.noAutoUpdate, updateEvery: s.updateEvery || 360, autoRestart: !!s.autoRestart, noAutoDownload: !!s.noAutoDownload, updateChannel: s.updateChannel || "",
     trayUsage: s.trayUsage || "", trayUsageEvery: s.trayUsageEvery || 3, trayNoLogos: !!s.trayNoLogos, trayNoBird: !!s.trayNoBird, trayNoNumber: !!s.trayNoNumber, trayPace: !!s.trayPace, trayNoCost: !!s.trayNoCost, trayWindows: s.trayWindows || {}, vision: s.vision || "", visionEffort: s.visionEffort || "", searcherEffort: s.searcherEffort || "", imageGen: s.imageGen || "", videoGen: s.videoGen || "", imageTimeout: s.imageTimeout || 0, classifyTimeout: s.classifyTimeout || 0, searcher: s.searcher || "", searchFirst: s.searchFirst || "", currency: s.currency || "usd", totalCurrency: s.totalCurrency || "", trayCurrency: s.trayCurrency || "",
     chineseUnits: !!s.chineseUnits, dayStart: s.dayStart || 0, usageAlert: s.usageAlert || 0, balanceAlert: s.balanceAlert || 0, resetReminder: s.resetReminder || 0,
-    turnDoneAlert: s.turnDoneAlert || 0, maskAlert: !!s.maskAlert };
+    allowanceBackAlert: !!s.allowanceBackAlert, turnDoneAlert: s.turnDoneAlert || 0, maskAlert: !!s.maskAlert };
 }
 
 // savePrefs sends what the page was drawn with (prefsBase) and the choice

@@ -903,7 +903,7 @@ func settingsState() settingsJSON {
 		s.TerminalDefault = found.Default
 	}
 	s.FX = costFX(s.Settings)
-	if (s.UsageAlert > 0 || s.BalanceAlert > 0 || s.ResetReminder > 0 || s.TurnDoneAlert > 0 || s.MaskAlert) && notifyProblem != nil {
+	if (s.UsageAlert > 0 || s.BalanceAlert > 0 || s.ResetReminder > 0 || s.AllowanceBackAlert || s.TurnDoneAlert > 0 || s.MaskAlert) && notifyProblem != nil {
 		s.NotifyProblem = notifyProblem()
 	}
 	s.ProxyNow, s.ProxySource = netproxy.Describe()
@@ -1740,8 +1740,8 @@ func Handler(w Windows, gw *gateway.Server) http.Handler {
 		}
 		// an alert turned on or moved is looked at now, the Mac asked for its
 		// leave to notify as it is turned on (#368)
-		if (in.UsageAlert != cur.UsageAlert || in.BalanceAlert != cur.BalanceAlert || in.ResetReminder != cur.ResetReminder || in.TurnDoneAlert != cur.TurnDoneAlert || in.MaskAlert != cur.MaskAlert) &&
-			(in.UsageAlert > 0 || in.BalanceAlert > 0 || in.ResetReminder > 0 || in.TurnDoneAlert > 0 || in.MaskAlert) && onAlerts != nil {
+		if (in.UsageAlert != cur.UsageAlert || in.BalanceAlert != cur.BalanceAlert || in.ResetReminder != cur.ResetReminder || in.AllowanceBackAlert != cur.AllowanceBackAlert || in.TurnDoneAlert != cur.TurnDoneAlert || in.MaskAlert != cur.MaskAlert) &&
+			(in.UsageAlert > 0 || in.BalanceAlert > 0 || in.ResetReminder > 0 || in.AllowanceBackAlert || in.TurnDoneAlert > 0 || in.MaskAlert) && onAlerts != nil {
 			onAlerts()
 		}
 		// the tray menu follows the page's language (#301)

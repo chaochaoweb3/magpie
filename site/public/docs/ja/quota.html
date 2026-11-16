@@ -85,7 +85,7 @@
      "name": "使用量がいっぱいに近づいたら通知できますか？",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "magpie quota alert 80 で、どれかの枠が 80% に達したとき magpie アプリが通知します。--balance 5 は残高が 5 以下になったときです。どちらも既定はオフです。"
+      "text": "magpie quota alert 80 で、どれかの枠が 80% に達したとき magpie アプリが通知します。--balance 5 は残高が 5 以下になったとき、--back on は使い切った枠が戻ったときに一度通知します。どれも既定はオフです。"
      }
     },
     {
@@ -194,9 +194,10 @@ magpie quota history --days 7 --json</pre></div>
 curl 'http://127.0.0.1:3425/v1/magpie/quotas/history?days=7&provider=codex'</pre></div>
     <p>magpie 公式のスキル <code>magpie-quota</code> は、エージェントに <code>magpie quota --json</code> を読ませ、<code>magpie quota wait</code> で待たせます。ライブラリ のスキルマーケットの先頭にあります。</p>
     <h2 id="alert"><a class="anchor" href="#alert">通知</a></h2>
-    <p>サブスクリプションやプランのどれかの枠が指定の割合まで使われたとき（枠ごとに一回）、または残高が指定額以下になったとき（その通貨かクレジットで、それを超えてチャージされるまで一回）、magpie アプリが通知します。どちらも既定はオフで、<code>off</code> で止めます。</p>
+    <p>サブスクリプションやプランのどれかの枠が指定の割合まで使われたとき（枠ごとに一回）、または残高が指定額以下になったとき（その通貨かクレジットで、それを超えてチャージされるまで一回）、magpie アプリが通知します。<code>--back on</code> は、使い切り（100%）と読まれた枠が、その回のリセットのあと再び枠があると読まれたときに一度通知します（最初の読み取りと、magpie を起動しただけでは通知しません）。どれも既定はオフです。<code>off</code> は使用率の通知を止め、<code>--balance off</code> と <code>--back off</code> はそれぞれの通知を止めます。設定 › 使用量 › 通知にも同じスイッチがあり、Bark を設定しているとその通知も Bark に届きます。</p>
     <div class="code"><span class="lang">ターミナル</span><button class="copy" data-copy="q-alert">コピー</button><pre id="q-alert">magpie quota alert 80              # notify at 80% used, once per window
 magpie quota alert --balance 5     # notify when a balance falls to 5 or under
+magpie quota alert --back on       # notify once when a used-up window renews
 magpie quota alert                 # what is set</pre></div>
     <h2 id="wait"><a class="anchor" href="#wait">枠が戻るまで待つ</a></h2>
     <p><code>magpie quota wait codex</code> は、magpie でオンの Codex アカウントのどれかに枠が戻ると返ります。アカウントのメールやログイン名、<code>&lt;provider&gt;/&lt;account&gt;</code> を書くとそれだけを待ちます。ゲートウェイが動いていなくても自分でベンダーに問い合わせ、最も早いリセットの少し後に（1〜10 分ごとに）読み直し、何を待っているかを stderr に出します。止まった作業をスクリプトで続けるには：</p>
@@ -220,7 +221,7 @@ magpie quota credits off</pre></div>
     <h3>Codex の枠が戻ったら自動で続けられますか？</h3>
     <p>できます。スクリプトで until codex exec …; do magpie quota wait codex || break; done とすると、枠が戻ったときに magpie quota wait が返り、コマンドが再び動きます。</p>
     <h3>使用量がいっぱいに近づいたら通知できますか？</h3>
-    <p>magpie quota alert 80 で、どれかの枠が 80% に達したとき magpie アプリが通知します。--balance 5 は残高が 5 以下になったときです。どちらも既定はオフです。</p>
+    <p>magpie quota alert 80 で、どれかの枠が 80% に達したとき magpie アプリが通知します。--balance 5 は残高が 5 以下になったとき、--back on は使い切った枠が戻ったときに一度通知します。どれも既定はオフです。</p>
     <h3>エージェントが自分で枠を読めますか？</h3>
     <p>読めます。magpie quota --json と GET http://127.0.0.1:3425/v1/magpie/quotas は同じ内容を返し、公式スキル magpie-quota がエージェントに読み方と待ち方を教えます。</p>
 

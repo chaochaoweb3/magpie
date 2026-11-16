@@ -9137,11 +9137,12 @@ magpie's own skill `magpie-quota` lets an agent read `magpie quota --json` and w
 
 ## Alerts
 
-Have the magpie app notify you when any window of a subscription or plan reaches a share used, once each time the window runs, or when a balance falls to an amount or under, in its own currency or credits, once until topped up past it. Both are off until set; `off` turns either off.
+Have the magpie app notify you when any window of a subscription or plan reaches a share used, once each time the window runs, or when a balance falls to an amount or under, in its own currency or credits, once until topped up past it. `--back on` notifies once when a window that was read as used up is read again after that run's reset with allowance (not on the first reading, and not merely because magpie started). All are off until set; `off` turns the usage alert off, and `--balance off` and `--back off` turn those off. The same switches are Settings › Usage › Alerts, and a notification also goes to Bark when Bark is set.
 
 ```
 magpie quota alert 80              # notify at 80% used, once per window
 magpie quota alert --balance 5     # notify when a balance falls to 5 or under
+magpie quota alert --back on       # notify once when a used-up window renews
 magpie quota alert                 # what is set
 ```
 
@@ -9188,7 +9189,7 @@ Yes. In a script, until codex exec …; do magpie quota wait codex || break; don
 
 ### Can I be told when use is nearly full?
 
-magpie quota alert 80 has the magpie app notify when any window reaches 80% used; --balance 5 when a balance falls to 5 or under. Both are off until set.
+magpie quota alert 80 has the magpie app notify when any window reaches 80% used; --balance 5 when a balance falls to 5 or under; --back on once when a window that was used up renews. All are off until set.
 
 ### Can an agent read the quota itself?
 

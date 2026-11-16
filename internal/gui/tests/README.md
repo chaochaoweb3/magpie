@@ -1962,7 +1962,8 @@ app's window keep the one-row header. Chromium and WebKit.
 "Allowance alert" and "Low balance alert" start Off; On saves 80% (and 5 for a
 balance), the field beside it saves the number typed and puts back a share
 past 100 unsaved, and a setting saved later (the currency) keeps both
-alerts. With magpie's notifications turned off in the system, both rows say
+alerts. "Allowance back" (#6821) starts Off; On saves it on and Off saves it
+off. With magpie's notifications turned off in the system, the rows say
 so. No click moves the page and no row has a coloured left border; English
 and Chinese, Chromium and WebKit, with `/api/plugins` faked.
 

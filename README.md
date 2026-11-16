@@ -259,7 +259,7 @@ Find them under Plugins › Discover › Gateway middleware. See [Gateway middle
 | | |
 | :-- | :-- |
 | **Tokens and cost** | Tokens, cache reads and writes, reasoning and calls, with cost at list price in dollars or yuan; set your own price for any model |
-| **Quota** | Balances and quota windows for every key, plan and account (`magpie quota`), and a reminder before a window renews with much of it unused |
+| **Quota** | Balances and quota windows for every key, plan and account (`magpie quota`), a reminder before a window renews with much of it unused, and a notification when a used-up window renews |
 | **Sessions** | Every agent conversation with its cost and title, reopened in your terminal with one click |
 | **Context** | How full each request's context window is, how much came from the cache, and what fills it |
 | **Bills** | By account and by upstream key, and OTLP export to your own observability stack |

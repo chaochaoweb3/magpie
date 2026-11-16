@@ -35,7 +35,7 @@ var Keys = []string{
 	// the menu bar's allowance cards
 	"trayUsages", "trayUsage", "trayUsageEvery", "trayNoLogos", "trayNoBird", "trayNoNumber", "trayPace", "trayNoCost", "trayWindows",
 	// usage and alerts
-	"currency", "totalCurrency", "trayCurrency", "chineseUnits", "dayStart", "usageAlert", "balanceAlert", "resetReminder", "turnDoneAlert", "maskAlert",
+	"currency", "totalCurrency", "trayCurrency", "chineseUnits", "dayStart", "usageAlert", "balanceAlert", "resetReminder", "allowanceBackAlert", "turnDoneAlert", "maskAlert",
 	// network
 	"proxy", "pluginProxy", "updateProxy", "updateSource",
 	// privacy
@@ -272,6 +272,11 @@ func Merge(body []byte, cur settings.Settings, web bool) (settings.Settings, err
 	// nor whether a value masked for the first time is told (Must2333)
 	if _, sent := fields["maskAlert"]; !sent {
 		in.MaskAlert = cur.MaskAlert
+	}
+	// nor whether a used-up window coming back is told (#6821): a page
+	// from before it would otherwise turn the alert off
+	if _, sent := fields["allowanceBackAlert"]; !sent {
+		in.AllowanceBackAlert = cur.AllowanceBackAlert
 	}
 	in.AgentOrder, in.AgentsHidden, in.AgentsShown, in.AgentsHere = cur.AgentOrder, cur.AgentsHidden, cur.AgentsShown, cur.AgentsHere
 	in.Window, in.WindowMaximised, in.WindowAt = cur.Window, cur.WindowMaximised, cur.WindowAt // the window's own, as it was last resized and moved

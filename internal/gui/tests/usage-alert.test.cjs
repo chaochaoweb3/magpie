@@ -36,7 +36,7 @@ function settingsPayload(over) {
 function server(lang, posts, problem) {
   const fixed = settingsPayload({ lang });
   let cur = fixed;
-  const answer = () => ((cur.usageAlert || cur.balanceAlert) && problem ? { ...cur, notifyProblem: problem } : cur);
+  const answer = () => ((cur.usageAlert || cur.balanceAlert || cur.allowanceBackAlert) && problem ? { ...cur, notifyProblem: problem } : cur);
   return async (route) => {
     const req = route.request(), url = new URL(req.url());
     const json = (data) => route.fulfill({ json: data });
@@ -84,6 +84,8 @@ const words = {
     usage: "Allowance alert", balance: "Low balance alert", off: "Off", on: "On",
     usageSub: "A notification when a 5-hour, weekly or monthly window reaches this share used, once each time it runs",
     balanceSub: "A notification when a balance falls to this amount, in its own currency or credits, once until it is topped up",
+    back: "Allowance back",
+    backSub: "A notification once a used-up 5-hour, weekly or monthly window renews",
     denied: "Notifications are turned off for magpie in the system's settings",
     share: "Share used", amount: "Amount", cny: "¥ CNY",
   },
@@ -91,6 +93,8 @@ const words = {
     usage: "额度提醒", balance: "余额提醒", off: "关闭", on: "开启",
     usageSub: "5 小时、每周或每月额度已用掉的比例达到此值时通知，每个周期一次",
     balanceSub: "余额降到此数（按其货币或积分计）时通知，充值前只提醒一次",
+    back: "额度恢复提醒",
+    backSub: "5 小时、每周或每月窗口用尽后恢复额度时通知一次",
     denied: "系统设置里关闭了 magpie 的通知",
     share: "已用比例", amount: "金额", cny: "¥ 人民币",
   },
@@ -134,6 +138,9 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert.equal((await page.locator("#balanceAlertRow .name").textContent()).trim(), w.balance);
         assert.equal((await page.locator("#usageAlertSub").textContent()).trim(), w.usageSub);
         assert.equal((await page.locator("#balanceAlertSub").textContent()).trim(), w.balanceSub);
+        assert.equal((await page.locator("#allowanceBackRow .name").textContent()).trim(), w.back);
+        assert.equal((await page.locator("#allowanceBackSub").textContent()).trim(), w.backSub);
+        assert.equal(await page.locator("#allowanceBackSegs .opt.on").textContent(), w.off);
         assert.deepEqual(await usageSegs.allTextContents(), [w.off, w.on]);
         assert.equal(await page.locator("#usageAlertSegs .opt.on").textContent(), w.off);
         assert.equal(await page.locator("#balanceAlertSegs .opt.on").textContent(), w.off);
@@ -208,8 +215,25 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await settled();
         assert.equal(await page.locator("#usageAlertSegs input").count(), 0);
 
+        // allowance back (#6821): On saves true and keeps the usage alert
+        // as it stands (just turned off), Off saves false, and neither
+        // click scrolls the page
+        const back = page.locator("#allowanceBackSegs .opt");
+        await reach(page, back.nth(1));
+        const atBack = await view(page);
+        await back.nth(1).click();
+        const bk = await posted(7);
+        assert.equal(bk.allowanceBackAlert, true, "On saves the allowance-back alert");
+        assert.equal(bk.usageAlert, 0, "turning it on keeps the usage alert");
+        await settled();
+        assert.equal(await view(page), atBack, "turning allowance back on must not scroll the settings page");
+        assert.equal(await page.locator("#allowanceBackSegs .opt.on").textContent(), w.on);
+        await back.nth(0).click();
+        assert.equal((await posted(8)).allowanceBackAlert, false);
+        await settled();
+
         // no coloured stripe down a row's left
-        for (const sel of ["#usageAlertRow", "#balanceAlertRow", "#usageAlertSub", "#balanceAlertSub"]) {
+        for (const sel of ["#usageAlertRow", "#balanceAlertRow", "#allowanceBackRow", "#usageAlertSub", "#balanceAlertSub", "#allowanceBackSub"]) {
           assert.equal(await page.locator(sel).evaluate((e) => getComputedStyle(e).borderLeftWidth), "0px", sel);
         }
         assert.deepEqual(errors, []);
@@ -235,7 +259,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await page.locator("#usageAlertSegs .opt").nth(1).click();
         await page.locator("#usageAlertSegs input").waitFor();
         await page.waitForTimeout(300);
-        for (const id of ["#usageAlertSub", "#balanceAlertSub"]) {
+        for (const id of ["#usageAlertSub", "#balanceAlertSub", "#allowanceBackSub"]) {
           const sub = page.locator(id);
           assert((await sub.textContent()).includes(w.denied), `${id} says notifications are off: ${await sub.textContent()}`);
           assert.equal((await sub.locator(".warn").textContent()), w.denied, "the problem stands out");
